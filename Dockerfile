@@ -195,9 +195,9 @@ ENV NODE_ENV=production \
     OPENCLAW_EXTENSIONS="@modelcontextprotocol/server-filesystem,@modelcontextprotocol/server-fetch,@modelcontextprotocol/server-sqlite,@modelcontextprotocol/server-sequential-thinking,@playwright/mcp,@executeautomation/playwright-mcp-server" \
     PATH=/opt/openclaw-bin:/data/.npm-global/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH
 
-# Health check - checks wrapper server health endpoint
+# Health check - matches Railway's healthcheckPath in railway.toml
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
+    CMD curl -f http://localhost:${PORT:-8080}/healthz || exit 1
 
 # Use tini as init system for proper signal handling
 ENTRYPOINT ["/usr/bin/tini", "--", "/entrypoint.sh"]

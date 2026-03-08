@@ -35,13 +35,67 @@ import { installAll } from './lib/startup-tools.js';
 import { injectMcpConfig } from './lib/mcp-config.js';
 import { setupMemory } from './lib/memory-setup.js';
 import toolsRouter from './routes/tools.js';
+import setupRouter from './routes/setup.js';
+
+// ── Legacy env var migration (CLAWDBOT_* → OPENCLAW_*) ──────────────────────
+const ENV_MIGRATION_MAP = {
+  CLAWDBOT_STATE_DIR: 'OPENCLAW_STATE_DIR',
+  CLAWDBOT_WORKSPACE_DIR: 'OPENCLAW_WORKSPACE_DIR',
+  CLAWDBOT_GATEWAY_TOKEN: 'OPENCLAW_GATEWAY_TOKEN',
+  CLAWDBOT_CONFIG_PATH: 'OPENCLAW_CONFIG_PATH',
+};
+for (const [oldKey, newKey] of Object.entries(ENV_MIGRATION_MAP)) {
+  if (process.env[oldKey] && !process.env[newKey]) {
+    process.env[newKey] = process.env[oldKey];
+    console.log(`[migration] ${oldKey} → ${newKey}`);
+  }
+}
+if (process.env.CLAWDBOT_PUBLIC_PORT && !process.env.PORT) {
+  process.env.PORT = process.env.CLAWDBOT_PUBLIC_PORT;
+  console.log('[migration] CLAWDBOT_PUBLIC_PORT → PORT');
+}
 
 // Startup tasks — install AI CLIs + wire MCP servers + init memory before gateway starts
 async function runStartupTasks() {
   console.log('[startup] Running pre-launch tasks...');
+
+  // Legacy config file migration (clawdbot.json / moltbot.json → openclaw.json)
+  const stateDir = process.env.OPENCLAW_STATE_DIR || '/data/.openclaw';
+  const canonicalConfig = join(stateDir, 'openclaw.json');
+  if (!existsSync(canonicalConfig)) {
+    for (const legacy of ['clawdbot.json', 'moltbot.json']) {
+      const legacyPath = join(stateDir, legacy);
+      try {
+        if (existsSync(legacyPath)) {
+          const { renameSync } = await import('fs');
+          renameSync(legacyPath, canonicalConfig);
+          console.log(`[migration] Renamed ${legacy} → openclaw.json`);
+          break;
+        }
+      } catch (err) {
+        console.warn(`[migration] Failed to rename ${legacy}: ${err.message}`);
+      }
+    }
+  }
+
   await installAll();
   injectMcpConfig();
   setupMemory();
+
+  // Run user bootstrap script if present
+  const workspaceDir = process.env.OPENCLAW_WORKSPACE_DIR || '/data/workspace';
+  const bootstrapPath = join(workspaceDir, 'bootstrap.sh');
+  if (existsSync(bootstrapPath)) {
+    console.log('[startup] Running bootstrap.sh...');
+    try {
+      const { execSync } = await import('child_process');
+      execSync('bash ' + bootstrapPath, { timeout: 600000, stdio: 'inherit' });
+      console.log('[startup] bootstrap.sh complete.');
+    } catch (err) {
+      console.warn('[startup] bootstrap.sh failed:', err.message);
+    }
+  }
+
   console.log('[startup] Pre-launch tasks complete.');
 }
 
@@ -387,6 +441,29 @@ app.use((req, res, next) => {
 
 // Health check endpoints - no authentication required
 app.use('/health', healthRouter);
+
+// /healthz — structured liveness probe with gateway TCP check (no auth, for Railway)
+app.get('/healthz', async (_req, res) => {
+  const port = parseInt(process.env.INTERNAL_GATEWAY_PORT || '18789', 10);
+  let gatewayReachable = false;
+  try {
+    const net = await import('net');
+    gatewayReachable = await new Promise(resolve => {
+      const sock = net.createConnection({ host: '127.0.0.1', port, timeout: 750 });
+      const done = ok => { try { sock.destroy(); } catch {} resolve(ok); };
+      sock.on('connect', () => done(true));
+      sock.on('timeout', () => done(false));
+      sock.on('error', () => done(false));
+    });
+  } catch { /* ignore */ }
+  const stateDir = process.env.OPENCLAW_STATE_DIR || '/data/.openclaw';
+  const workspaceDir = process.env.OPENCLAW_WORKSPACE_DIR || '/data/workspace';
+  res.json({
+    ok: true,
+    wrapper: { configured: existsSync(join(stateDir, 'openclaw.json')), stateDir, workspaceDir },
+    gateway: { port, reachable: gatewayReachable, running: isGatewayRunning() },
+  });
+});
 
 // Login page - no authentication required
 app.get('/login', (req, res) => {
@@ -1570,6 +1647,9 @@ app.post('/lite/api/upgrade', authMiddleware, async (req, res) => {
 // Tools status endpoint — shows installed CLIs, MCP servers, env var status
 app.use('/tools', authMiddleware, toolsRouter);
 
+// Setup wizard — browser-based onboarding, debug console, config editor, export/import
+app.use('/setup', setupRouter);
+
 // API: Serve schemas + form metadata for client-side validation and form generation
 app.get('/api/schemas', authMiddleware, (req, res) => {
   res.json(getAllSchemas());
@@ -1668,10 +1748,12 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 // Start server
 server.listen(PORT, '0.0.0.0', async () => {
   console.log(`OpenClaw wrapper server listening on port ${PORT}`);
-  console.log(`Setup wizard: http://localhost:${PORT}/onboard`);
+  console.log(`Setup wizard: http://localhost:${PORT}/setup`);
+  console.log(`Onboard wizard: http://localhost:${PORT}/onboard`);
   console.log(`Lite panel: http://localhost:${PORT}/lite`);
   console.log(`Tools status: http://localhost:${PORT}/tools`);
   console.log(`Health check: http://localhost:${PORT}/health`);
+  console.log(`Healthz probe: http://localhost:${PORT}/healthz`);
 
   // Run startup tasks (install AI CLIs, wire MCP servers)
   try {

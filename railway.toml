@@ -2,7 +2,7 @@
   dockerfilePath = "Dockerfile"
 
 [deploy]
-  healthcheckPath = "/health"
+  healthcheckPath = "/healthz"
   healthcheckTimeout = 300
   restartPolicyType = "on-failure"
   restartPolicyMaxRetries = 3
@@ -18,7 +18,7 @@
 
   [[services.variables]]
     name = "SETUP_PASSWORD"
-    description = "Password for /onboard, /lite, /tui, /tools pages"
+    description = "Password for /onboard, /lite, /setup, /tui, /tools pages"
     required = true
     generateValue = true
 
