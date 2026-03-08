@@ -56,29 +56,13 @@ export async function installAll() {
   // Ensure persistent npm global dir exists
   if (!existsSync(BIN)) mkdirSync(BIN, { recursive: true });
 
-  // 1. Claude Code CLI (Anthropic)
+  // AI CLI tools (conditional on API keys)
   npmGlobalInstall('@anthropic-ai/claude-code', true, 'ANTHROPIC_API_KEY');
-
-  // 2. OpenAI Codex CLI
   npmGlobalInstall('@openai/codex', true, 'OPENAI_API_KEY');
-
-  // 3. Gemini CLI (Google)
   npmGlobalInstall('@google/gemini-cli', true, 'GEMINI_API_KEY');
 
-  // 4. MCP servers — always install these core ones
-  npmGlobalInstall('@modelcontextprotocol/server-filesystem', false, null);
-  npmGlobalInstall('@modelcontextprotocol/server-fetch', false, null);
-  npmGlobalInstall('@modelcontextprotocol/server-sqlite', false, null);
-  npmGlobalInstall('@modelcontextprotocol/server-sequential-thinking', false, null);
+  // MCP servers are now handled at Docker build time via OPENCLAW_EXTENSIONS
 
-  // 5. MCP servers — conditional on API keys being set
-  npmGlobalInstall('@modelcontextprotocol/server-brave-search', true, 'BRAVE_SEARCH_API_KEY');
-  npmGlobalInstall('@modelcontextprotocol/server-github', true, 'GITHUB_TOKEN');
-
-  // 6. Playwright MCP servers (always — Playwright/Chromium is pre-installed in image)
-  npmGlobalInstall('@playwright/mcp', false, null);
-  npmGlobalInstall('@executeautomation/playwright-mcp-server', false, null);
-
-  // 7. Google Workspace credentials decode
+  // Google Workspace credentials decode
   await decodeGoogleCredentials();
 }

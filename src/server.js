@@ -33,13 +33,15 @@ import { getUIPageHTML } from './ui-page.js';
 import { getLoginPageHTML } from './login-page.js';
 import { installAll } from './lib/startup-tools.js';
 import { injectMcpConfig } from './lib/mcp-config.js';
+import { setupMemory } from './lib/memory-setup.js';
 import toolsRouter from './routes/tools.js';
 
-// Startup tasks — install AI CLIs + wire MCP servers before gateway starts
+// Startup tasks — install AI CLIs + wire MCP servers + init memory before gateway starts
 async function runStartupTasks() {
   console.log('[startup] Running pre-launch tasks...');
   await installAll();
   injectMcpConfig();
+  setupMemory();
   console.log('[startup] Pre-launch tasks complete.');
 }
 

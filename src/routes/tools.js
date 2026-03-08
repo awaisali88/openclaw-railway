@@ -4,7 +4,7 @@
 
 import { Router } from 'express';
 import { execSync } from 'child_process';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 
 const router = Router();
 
@@ -39,10 +39,28 @@ router.get('/', (req, res) => {
     }
   })();
 
+  const memoryStatus = (() => {
+    try {
+      const workspace = process.env.OPENCLAW_WORKSPACE_DIR || '/data/workspace';
+      const today = new Date().toISOString().slice(0, 10);
+      return {
+        'MEMORY.md':  existsSync(`${workspace}/MEMORY.md`)  ? 'exists' : 'missing',
+        'PROJECT.md': existsSync(`${workspace}/PROJECT.md`) ? 'exists' : 'missing',
+        'AGENTS.md':  existsSync(`${workspace}/AGENTS.md`)  ? 'exists' : 'missing',
+        [`memory/${today}.md`]: existsSync(`${workspace}/memory/${today}.md`)
+          ? 'exists'
+          : 'not yet created today',
+      };
+    } catch {
+      return { error: 'could not check workspace' };
+    }
+  })();
+
   res.json({
     timestamp: new Date().toISOString(),
     tools,
     mcpServers,
+    memoryStatus,
     env: {
       ANTHROPIC_API_KEY:              process.env.ANTHROPIC_API_KEY              ? 'set' : 'not set',
       OPENAI_API_KEY:                 process.env.OPENAI_API_KEY                 ? 'set' : 'not set',

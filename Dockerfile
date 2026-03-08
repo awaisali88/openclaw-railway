@@ -192,6 +192,7 @@ ENV NODE_ENV=production \
     INTERNAL_GATEWAY_PORT=18789 \
     NPM_CONFIG_PREFIX=/data/.npm-global \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    OPENCLAW_EXTENSIONS="@modelcontextprotocol/server-filesystem,@modelcontextprotocol/server-fetch,@modelcontextprotocol/server-sqlite,@modelcontextprotocol/server-sequential-thinking,@playwright/mcp,@executeautomation/playwright-mcp-server" \
     PATH=/opt/openclaw-bin:/data/.npm-global/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH
 
 # Health check - checks wrapper server health endpoint

@@ -140,6 +140,32 @@ export function injectMcpConfig() {
   cfg.mcp = cfg.mcp || {};
   cfg.mcp.servers = Object.assign({}, builtServers, cfg.mcp.servers || {});
 
+  // Inject shared memory paths so all agents index PROJECT.md and MEMORY.md
+  cfg.agents = cfg.agents || {};
+  cfg.agents.defaults = cfg.agents.defaults || {};
+  cfg.agents.defaults.memorySearch = cfg.agents.defaults.memorySearch || {};
+
+  if (!cfg.agents.defaults.memorySearch.additionalMemoryPaths) {
+    cfg.agents.defaults.memorySearch.additionalMemoryPaths = [
+      '/data/workspace/PROJECT.md',
+      '/data/workspace/MEMORY.md',
+    ];
+    console.log('[mcp-config] additionalMemoryPaths set for shared project memory');
+  }
+
+  if (!cfg.agents.defaults.compaction) {
+    cfg.agents.defaults.compaction = {
+      reserveTokensFloor: 20000,
+      memoryFlush: {
+        enabled: true,
+        softThresholdTokens: 4000,
+        systemPrompt: 'Session nearing compaction. Store durable memories now.',
+        prompt: "Update PROJECT.md with your output summary and write any lasting notes to memory/YYYY-MM-DD.md. Reply with NO_REPLY if nothing to store.",
+      },
+    };
+    console.log('[mcp-config] memoryFlush configured');
+  }
+
   writeConfig(cfg);
   console.log('[mcp-config] MCP servers configured:', Object.keys(cfg.mcp.servers).join(', '));
 }
