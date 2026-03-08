@@ -1,7 +1,7 @@
-# Uraan AI — OpenClaw Railway Template
+# OpenClaw Railway Template — Full-Stack Edition
 
-> Full-stack, maximum-accessibility OpenClaw deployment for Railway.
-> Fork of [protemplate/openclaw-railway](https://github.com/protemplate/openclaw-railway)
+> Full-stack OpenClaw deployment for Railway.
+> Based on [protemplate/openclaw-railway](https://github.com/protemplate/openclaw-railway),
 > extended with developer AI CLIs, Google Workspace, dual-mode headless browser
 > automation, and complete MCP server wiring.
 
@@ -35,7 +35,7 @@ directly to your Telegram or Discord as image messages.
 
 **Example commands:**
 ```
-"Take a screenshot of github.com/uraan-ai and send it to me"
+"Take a screenshot of github.com/openclaw and send it to me"
 -> Uses playwright-vision -> screenshot arrives in your chat
 
 "Test if the contact form on mysite.com submits correctly"

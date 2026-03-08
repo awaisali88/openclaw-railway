@@ -1,4 +1,4 @@
-# OpenClaw Railway Template — Uraan AI Full-Stack
+# OpenClaw Railway Template — Full-Stack Edition
 # 4-stage build: wrapper-builder → tools-layer → playwright-layer → runtime
 
 # ==============================================================================
