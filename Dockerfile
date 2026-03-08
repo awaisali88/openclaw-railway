@@ -1,5 +1,5 @@
-# OpenClaw Railway Template
-# Optimized 2-stage build with npm install, optional features, and fast startup
+# OpenClaw Railway Template — Full-Stack Edition
+# 4-stage build: wrapper-builder → tools-layer → playwright-layer → runtime
 
 # ==============================================================================
 # Stage 1: Build the wrapper server (with node-pty native module)
@@ -23,12 +23,46 @@ RUN npm install --omit=dev
 COPY src/ ./src/
 
 # ==============================================================================
-# Stage 2: Production runtime
+# Stage 2: Tools layer — Go, gmlis, Linuxbrew, uv
+# ==============================================================================
+FROM node:24-bookworm-slim AS tools-layer
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    golang-go git curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# gmlis — Gmail CLI (Go-based)
+RUN GOBIN=/usr/local/bin go install \
+    github.com/tychofreeman/gmlis@latest || \
+    echo "WARN: gmlis install failed, will attempt at runtime"
+
+# Linuxbrew — baked into image
+RUN useradd -m -s /bin/bash linuxbrew && \
+    su - linuxbrew -c '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"' || \
+    echo "WARN: Linuxbrew install failed"
+ENV PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:${PATH}"
+
+# uv — fast Python package manager
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    mv /root/.local/bin/uv /usr/local/bin/uv || \
+    pip3 install uv --break-system-packages || \
+    echo "WARN: uv install failed"
+
+# ==============================================================================
+# Stage 3: Playwright layer — Chromium + Playwright MCP packages
+# ==============================================================================
+FROM tools-layer AS playwright-layer
+
+# Install both Playwright MCP packages globally
+RUN npm install -g @playwright/mcp @executeautomation/playwright-mcp-server
+
+# ==============================================================================
+# Stage 4: Production runtime
 # ==============================================================================
 FROM node:24-bookworm-slim AS runtime
 
 # Build args for version and optional features
-ARG OPENCLAW_VERSION=2026.2.26
+ARG OPENCLAW_VERSION=2026.3.7
 ARG INSTALL_SIGNAL_CLI=false
 ARG INSTALL_BROWSER=true
 ARG SIGNAL_CLI_VERSION=0.13.24
@@ -110,6 +144,14 @@ RUN if [ "$INSTALL_BROWSER" = "true" ]; then \
       echo "Skipping Playwright/Chromium (set INSTALL_BROWSER=true to enable)"; \
     fi
 
+# Copy artifacts from tools-layer and playwright-layer
+COPY --from=tools-layer /usr/local/bin/gmlis /usr/local/bin/gmlis
+COPY --from=tools-layer /usr/local/bin/uv /usr/local/bin/uv
+COPY --from=playwright-layer /usr/local/lib/node_modules/@playwright /usr/local/lib/node_modules/@playwright
+COPY --from=playwright-layer /usr/local/lib/node_modules/@executeautomation /usr/local/lib/node_modules/@executeautomation
+# Copy Linuxbrew if installed
+COPY --from=tools-layer /home/linuxbrew /home/linuxbrew
+
 WORKDIR /app
 
 # Copy wrapper server from builder
@@ -124,8 +166,11 @@ RUN chmod +x /entrypoint.sh
 # Copy pre-bundled skills (Railway-optimized)
 COPY skills/ /bundled-skills/
 
+# Set npm global prefix to persistent volume
+RUN echo "prefix=/data/.npm-global" >> /etc/npmrc
+
 # Create data directory with proper permissions
-RUN mkdir -p /data/.openclaw /data/workspace && \
+RUN mkdir -p /data/.openclaw /data/workspace /data/browser/screenshots /data/browser/profile && \
     chmod 700 /data/.openclaw /data/workspace && \
     chown -R openclaw:openclaw /data /app
 
@@ -139,8 +184,7 @@ EXPOSE 8080
 # Environment defaults
 # NPM_CONFIG_PREFIX on the persistent volume so in-app upgrades survive restarts.
 # PATH order: /opt/openclaw-bin (token-injecting wrapper) > /data/.npm-global/bin
-# (npm upgrades) > system defaults.  The wrapper delegates to the npm-upgraded
-# entry.js when available, so the upgraded code still runs.
+# (npm upgrades) > Linuxbrew > system defaults.
 ENV NODE_ENV=production \
     HOME=/home/openclaw \
     OPENCLAW_STATE_DIR=/data/.openclaw \
@@ -148,11 +192,12 @@ ENV NODE_ENV=production \
     INTERNAL_GATEWAY_PORT=18789 \
     NPM_CONFIG_PREFIX=/data/.npm-global \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
-    PATH=/opt/openclaw-bin:/data/.npm-global/bin:$PATH
+    OPENCLAW_EXTENSIONS="@modelcontextprotocol/server-filesystem,@modelcontextprotocol/server-fetch,@modelcontextprotocol/server-sqlite,@modelcontextprotocol/server-sequential-thinking,@playwright/mcp,@executeautomation/playwright-mcp-server" \
+    PATH=/opt/openclaw-bin:/data/.npm-global/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH
 
-# Health check - checks wrapper server health endpoint
+# Health check - matches Railway's healthcheckPath in railway.toml
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
+    CMD curl -f http://localhost:${PORT:-8080}/healthz || exit 1
 
 # Use tini as init system for proper signal handling
 ENTRYPOINT ["/usr/bin/tini", "--", "/entrypoint.sh"]

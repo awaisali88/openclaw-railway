@@ -73,11 +73,23 @@ test-local: build-local ## Test the local dev build and endpoints
 	@echo "--- Testing readiness endpoint (should return 503 before gateway start) ---"
 	@curl -s http://localhost:8081/health/ready | python3 -m json.tool 2>/dev/null || curl -s http://localhost:8081/health/ready
 	@echo ""
+	@echo "--- Testing /healthz endpoint ---"
+	@curl -sf http://localhost:8081/healthz | python3 -m json.tool 2>/dev/null || curl -sf http://localhost:8081/healthz
+	@echo ""
+	@echo "--- Testing /setup/healthz endpoint ---"
+	@curl -sf http://localhost:8081/setup/healthz | python3 -m json.tool 2>/dev/null || curl -sf http://localhost:8081/setup/healthz
+	@echo ""
 	@echo "--- Testing auth protection (should return 401) ---"
 	@curl -s -o /dev/null -w "Setup without auth: HTTP %{http_code} (expected 401)\n" http://localhost:8081/onboard
 	@echo ""
 	@echo "--- Testing auth with password (should return 200) ---"
 	@curl -s -o /dev/null -w "Setup with auth: HTTP %{http_code} (expected 200)\n" "http://localhost:8081/onboard?password=test-password"
+	@echo ""
+	@echo "--- Testing /setup auth protection (should return 401) ---"
+	@curl -s -o /dev/null -w "Setup wizard without auth: HTTP %{http_code} (expected 401)\n" http://localhost:8081/setup
+	@echo ""
+	@echo "--- Testing /setup with password (should return 200) ---"
+	@curl -s -o /dev/null -w "Setup wizard with auth: HTTP %{http_code} (expected 200)\n" "http://localhost:8081/setup?password=test-password"
 	@echo ""
 	@echo "Cleaning up..."
 	@docker stop openclaw-test-local 2>/dev/null || true
