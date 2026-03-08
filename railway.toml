@@ -14,6 +14,7 @@
     dockerfilePath = "Dockerfile"
 
   [services.deploy]
+    preDeployCommand = "test -n \"$SETUP_PASSWORD\" || (echo 'ERROR: SETUP_PASSWORD must be set before deploying' && exit 1)"
     startCommand = "node src/server.js"
 
   [[services.variables]]

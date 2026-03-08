@@ -34,7 +34,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # gmlis — Gmail CLI (Go-based)
 RUN GOBIN=/usr/local/bin go install \
     github.com/tychofreeman/gmlis@latest || \
-    echo "WARN: gmlis install failed, will attempt at runtime"
+    (echo "WARN: gmlis install failed, creating placeholder" && touch /usr/local/bin/gmlis)
 
 # Linuxbrew — baked into image
 RUN useradd -m -s /bin/bash linuxbrew && \
