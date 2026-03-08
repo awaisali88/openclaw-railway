@@ -31,6 +31,17 @@ import { createTerminalServer, closeAllSessions } from './terminal.js';
 import { getSetupPageHTML } from './onboard-page.js';
 import { getUIPageHTML } from './ui-page.js';
 import { getLoginPageHTML } from './login-page.js';
+import { installAll } from './lib/startup-tools.js';
+import { injectMcpConfig } from './lib/mcp-config.js';
+import toolsRouter from './routes/tools.js';
+
+// Startup tasks — install AI CLIs + wire MCP servers before gateway starts
+async function runStartupTasks() {
+  console.log('[startup] Running pre-launch tasks...');
+  await installAll();
+  injectMcpConfig();
+  console.log('[startup] Pre-launch tasks complete.');
+}
 
 // Configuration
 const PORT = process.env.PORT || 8080;
@@ -1554,6 +1565,9 @@ app.post('/lite/api/upgrade', authMiddleware, async (req, res) => {
   }
 });
 
+// Tools status endpoint — shows installed CLIs, MCP servers, env var status
+app.use('/tools', authMiddleware, toolsRouter);
+
 // API: Serve schemas + form metadata for client-side validation and form generation
 app.get('/api/schemas', authMiddleware, (req, res) => {
   res.json(getAllSchemas());
@@ -1650,11 +1664,19 @@ process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
 // Start server
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, '0.0.0.0', async () => {
   console.log(`OpenClaw wrapper server listening on port ${PORT}`);
   console.log(`Setup wizard: http://localhost:${PORT}/onboard`);
   console.log(`Lite panel: http://localhost:${PORT}/lite`);
+  console.log(`Tools status: http://localhost:${PORT}/tools`);
   console.log(`Health check: http://localhost:${PORT}/health`);
+
+  // Run startup tasks (install AI CLIs, wire MCP servers)
+  try {
+    await runStartupTasks();
+  } catch (err) {
+    console.error('[startup] Pre-launch tasks failed:', err.message);
+  }
 
   // Check if gateway should auto-start (if already configured)
   const configFile = join(OPENCLAW_STATE_DIR, 'openclaw.json');
