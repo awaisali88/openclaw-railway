@@ -56,10 +56,10 @@ export async function installAll() {
   // Ensure persistent npm global dir exists
   if (!existsSync(BIN)) mkdirSync(BIN, { recursive: true });
 
-  // AI CLI tools (conditional on API keys)
-  npmGlobalInstall('@anthropic-ai/claude-code', true, 'ANTHROPIC_API_KEY');
-  npmGlobalInstall('@openai/codex', true, 'OPENAI_API_KEY');
-  npmGlobalInstall('@google/gemini-cli', true, 'GEMINI_API_KEY');
+  // AI CLI tools — always install (configured post-deploy via openclaw onboard/models)
+  npmGlobalInstall('@anthropic-ai/claude-code', false, null);
+  npmGlobalInstall('@openai/codex', false, null);
+  npmGlobalInstall('@google/gemini-cli', false, null);
 
   // MCP servers are now handled at Docker build time via OPENCLAW_EXTENSIONS
 
